@@ -17,43 +17,28 @@ int read_from_interface(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
 
-  struct ethhdr *eth = data;
-
-  if ((void *)(eth + sizeof(struct ethhdr)) > data_end) {
+  if ((void*)(data + sizeof(struct ethhdr)) > data_end) {
     return XDP_PASS;
   }
-
+  struct ethhdr *eth = data;
   if (!bpf_ntohs(eth->h_proto) == ETH_P_IP) {
     return XDP_PASS;
   }
-
-  struct iphdr *ip = (struct iphdr *)(eth + sizeof(struct ethhdr));
-
-  if ((void *)(ip + sizeof(struct iphdr)) > data_end) {
+  if ((void*)(eth + sizeof(struct iphdr) * 4) > data_end) {
     return XDP_PASS;
   }
-
+  struct iphdr *ip = (struct iphdr *)(eth + sizeof(struct iphdr) * 4);
   if (!ip->protocol == IPPROTO_UDP) {
     return XDP_PASS;
   }
-  
-  struct udphdr *udp = (struct udphdr *)(ip + sizeof(struct iphdr));
-
-  if ((void *)(udp + sizeof(struct udphdr)) > data_end) {
+  if ((void*)(ip + sizeof(struct udphdr)) > data_end) {
     return XDP_PASS;
   }
+  struct udphdr *udp = (struct udphdr *)(ip + sizeof(struct udphdr));
 
-  unsigned int payload_len = bpf_ntohs(udp->len) - sizeof(struct udphdr);
-  unsigned char *payload = (unsigned char *)udp + sizeof(struct udphdr);
+  bpf_xdp_output(ctx, &perf_map, BPF_F_CURRENT_CPU, udp, sizeof(*udp));
 
-  if ((void *)payload + payload_len > data_end) {
-    bpf_printk("udp_header_bytes too far past end of data");
-    return XDP_PASS;
-  }
-
-  bpf_xdp_output(ctx, &perf_map, BPF_F_CURRENT_CPU, payload, payload_len);
-
-  bpf_printk("Captured UDP header (%d bytes)", payload_len);
+  bpf_printk("Captured UDP header (%d bytes)", sizeof(*udp));
 
   return XDP_PASS;
 }

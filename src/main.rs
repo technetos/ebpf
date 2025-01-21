@@ -39,16 +39,20 @@ fn main() -> anyhow::Result<()> {
     let mut skel = InterfaceTapSkelBuilder::default().open(&mut open_object)?.load()?;
 
     skel.attach()?;
+    println!("Attached!");
 
-    let perf_map = skel.maps.perf_map;
+    let ring_buf = skel.maps.ringbuf;
 
-    let perf_buffer = PerfBufferBuilder::new(&perf_map)
-        .sample_cb(|_cpu: i32, data: &[u8]| {
-            dbg!(data);
-        })
-        .build()?;
+    let mut ring_buf_builder = RingBufferBuilder::new();
+
+    ring_buf_builder.add(&ring_buf, |bytes: &[u8]| -> i32 {
+        dbg!(bytes);
+        0
+    })?;
+
+    let ring_buffer = ring_buf_builder.build()?;
 
     loop {
-        perf_buffer.poll(Duration::from_millis(100))?;
+        ring_buffer.poll(Duration::from_millis(100))?;
     }
 }

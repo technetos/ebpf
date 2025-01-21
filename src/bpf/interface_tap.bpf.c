@@ -54,6 +54,8 @@ int read_from_interface(struct xdp_md *ctx) {
     return XDP_PASS;
   }
 
+  bpf_printk("Got udp payload, sending to userspace");
+
   bpf_ringbuf_submit(udp + (sizeof(struct udphdr) - udp_payload_len), 0);
 
   bpf_printk("Captured UDP header (%d bytes)", sizeof(*udp));

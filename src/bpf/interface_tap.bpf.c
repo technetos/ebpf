@@ -54,7 +54,7 @@ int read_from_interface(struct xdp_md *ctx) {
     return XDP_PASS;
   }
 
-  bpf_printk("Got udp payload, sending to userspace");
+  bpf_printk("Got udp payload ingress iface: %d egress iface %d, sending to userspace", ctx->ingress_ifindex, ctx->egress_ifindex);
 
   bpf_ringbuf_submit(udp + (sizeof(struct udphdr) - udp_payload_len), 0);
 

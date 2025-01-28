@@ -14,7 +14,7 @@ use tap::*;
 #[derive(Parser)]
 struct Commands {
     #[arg(short = 'i')]
-    iface: String,
+    iface: i32,
 }
 
 // TODO: WHYYYY
@@ -32,11 +32,15 @@ fn bump_memlock_rlimit() -> anyhow::Result<()> {
 }
 
 fn main() -> anyhow::Result<()> {
-    //let args = Commands::parse();
+    let args = Commands::parse();
     bump_memlock_rlimit()?;   
 
     let mut open_object = MaybeUninit::uninit();
     let mut skel = InterfaceTapSkelBuilder::default().open(&mut open_object)?.load()?;
+    let link = skel.progs.read_from_interface.attach_xdp(args.iface)?;
+    skel.links = InterfaceTapLinks {
+        read_from_interface: Some(link),
+    };
 
     skel.attach()?;
     println!("Attached!");

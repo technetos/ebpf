@@ -8,9 +8,9 @@ struct hdr_cursor {
   void *pos;
 };
 
-int parse_eth_hdr(struct hdr_cursor *cursor, void *data_end, struct ethhdr **ethhdr);
-int parse_ip_hdr(struct hdr_cursor *cursor, void *data_end, struct iphdr **iphdr);
-int parse_udp_hdr(struct hdr_cursor *cursor, void *data_end, struct udphdr **udphdr);
+static __always_inline int parse_eth_hdr(struct hdr_cursor *cursor, void *data_end, struct ethhdr **ethhdr);
+static __always_inline int parse_ip_hdr(struct hdr_cursor *cursor, void *data_end, struct iphdr **iphdr);
+static __always_inline int parse_udp_hdr(struct hdr_cursor *cursor, void *data_end, struct udphdr **udphdr);
 
 struct {
   __uint(type, BPF_MAP_TYPE_RINGBUF);
@@ -22,6 +22,9 @@ SEC("xdp")
 int read_from_interface(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
+  int packet_size = data_end - data;
+
+  bpf_printk("Packet size: %d", packet_size);
 
   if ((data + 1) > data_end) {
     return XDP_PASS;
@@ -65,7 +68,7 @@ int read_from_interface(struct xdp_md *ctx) {
 
 char _license[] SEC("license") = "GPL";
 
-int parse_eth_hdr(struct hdr_cursor *cursor, void *data_end, struct ethhdr **ethhdr) {
+static __always_inline int parse_eth_hdr(struct hdr_cursor *cursor, void *data_end, struct ethhdr **ethhdr) {
   struct ethhdr *eth = cursor->pos;
   
   int header_size = sizeof(*eth);
@@ -86,7 +89,7 @@ int parse_eth_hdr(struct hdr_cursor *cursor, void *data_end, struct ethhdr **eth
   return 0;
 }
 
-int parse_ip_hdr(struct hdr_cursor *cursor, void *data_end, struct iphdr **iphdr) {
+static __always_inline int parse_ip_hdr(struct hdr_cursor *cursor, void *data_end, struct iphdr **iphdr) {
   struct iphdr *iph = cursor->pos;
 
   if ((iph + 1) > data_end) {
@@ -122,7 +125,7 @@ int parse_ip_hdr(struct hdr_cursor *cursor, void *data_end, struct iphdr **iphdr
   return 0;
 }
 
-int parse_udp_hdr(struct hdr_cursor *cursor, void *data_end, struct udphdr **udphdr) {
+static __always_inline int parse_udp_hdr(struct hdr_cursor *cursor, void *data_end, struct udphdr **udphdr) {
   struct udphdr *udp_hdr = cursor->pos;
 
   if ((udp_hdr + 1) > data_end) {

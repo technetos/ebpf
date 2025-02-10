@@ -8,7 +8,7 @@ mod tap {
     include!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/bpf/interface_tap.skel.rs"));
 }
 use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
-use libbpf_rs::{AsRawLibbpf, MapCore, PerfBufferBuilder, RingBufferBuilder};
+use libbpf_rs::RingBufferBuilder;
 use tap::*;
 
 #[derive(Parser)]
@@ -43,7 +43,6 @@ fn main() -> anyhow::Result<()> {
     };
 
     skel.attach()?;
-    println!("Attached!");
 
     let ring_buf = skel.maps.ringbuf;
 

@@ -39,13 +39,15 @@ int read_from_interface(struct xdp_md *ctx) {
       return XDP_PASS;
     }
 
-    unsigned int i;
+    int i;
+    unsigned char *payload_data;
     #pragma loop unroll
-    for (i = 0; i < payload_len - 1; i++) {
-      buffer[i] = payload[i];
-      if (payload + i > data_end) {
-        return XDP_PASS;
+    for (i = 0; i < payload_len; i++) {
+      *payload_data = *payload + i;
+      if (payload_data + 1 > data_end) {
+        break;
       }
+      buffer[i] = *payload_data;
     }
 
     bpf_ringbuf_output(&ringbuf, &buffer, sizeof(buffer), 0);

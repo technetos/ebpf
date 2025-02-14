@@ -27,13 +27,28 @@ int read_from_interface(struct xdp_md *ctx) {
     return XDP_PASS;
   }
 
+  unsigned char buffer[400] = {0};
+
   if (iph->protocol == IPPROTO_UDP) {
     // Length of the UDP payload
-    unsigned int payload_size = bpf_ntohs(udp->len) - sizeof(*udp);
+    unsigned int payload_len = bpf_ntohs(udp->len) - sizeof(*udp);
     // Start of the UDP payload
     unsigned char *payload = (unsigned char *)udp + sizeof(*udp);
 
-    bpf_ringbuf_output(&ringbuf, &payload, payload_size, 0);
+    if ((void *)payload + payload_len > data_end) {
+      return XDP_PASS;
+    }
+
+    unsigned int i;
+    #pragma loop unroll
+    for (i = 0; i < payload_len - 1; i++) {
+      buffer[i] = payload[i];
+      if (payload + i > data_end) {
+        return XDP_PASS;
+      }
+    }
+
+    bpf_ringbuf_output(&ringbuf, &buffer, sizeof(buffer), 0);
   }
 
   return XDP_PASS;

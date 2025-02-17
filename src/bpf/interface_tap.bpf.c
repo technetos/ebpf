@@ -9,6 +9,8 @@ struct {
   __uint(max_entries, 4096);
 } ringbuf SEC(".maps");
 
+const unsigned int SIZE = 512;
+
 SEC("xdp")
 int read_from_interface(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
@@ -18,7 +20,9 @@ int read_from_interface(struct xdp_md *ctx) {
   struct iphdr *iph = data + sizeof(*eth);
   struct udphdr *udp = data + sizeof(*eth) + sizeof(*iph);
 
-  if (data + sizeof(*eth) + sizeof(*iph) + sizeof(*udp) > data_end) {
+  unsigned int offset = sizeof(*eth) + sizeof(*iph) + sizeof(*udp);
+
+  if (data + offset > data_end) {
     bpf_printk("Bounds check failed, pointer past data_end");
     return XDP_PASS;
   }
@@ -27,31 +31,32 @@ int read_from_interface(struct xdp_md *ctx) {
     return XDP_PASS;
   }
 
-  unsigned char buffer[400] = {0};
-
-  if (iph->protocol == IPPROTO_UDP) {
-    // Length of the UDP payload
-    unsigned int payload_len = bpf_ntohs(udp->len) - sizeof(*udp);
-    // Start of the UDP payload
-    unsigned char *payload = (unsigned char *)udp + sizeof(*udp);
-
-    if ((void *)payload + payload_len > data_end) {
-      return XDP_PASS;
-    }
-
-    int i;
-    unsigned char *payload_data;
-    #pragma loop unroll
-    for (i = 0; i < payload_len; i++) {
-      *payload_data = *payload + i;
-      if (payload_data + 1 > data_end) {
-        break;
-      }
-      buffer[i] = *payload_data;
-    }
-
-    bpf_ringbuf_output(&ringbuf, &buffer, sizeof(buffer), 0);
+  if (iph->protocol != IPPROTO_UDP) {
+    return XDP_PASS;
   }
+
+  // Length of the UDP payload
+  unsigned int payload_len = bpf_ntohs(udp->len) - sizeof(*udp);
+
+  if (data + offset + payload_len > data_end) {
+    return XDP_PASS;
+  }
+
+  unsigned char *payload = bpf_ringbuf_reserve(&ringbuf, SIZE, 0);
+
+  if (!payload) {
+    return XDP_PASS;
+  }
+
+  unsigned int i = 0;
+  for (i = 0; i < payload_len && data + offset + i < data_end; i++) {
+    void *payload_data = data + offset + i;
+    if (payload_data) {
+      payload[i] = *(unsigned char *)payload_data;
+    }
+  }
+
+  bpf_ringbuf_submit(payload, BPF_RB_FORCE_WAKEUP);
 
   return XDP_PASS;
 }
